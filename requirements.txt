@@ -1,0 +1,14 @@
+# 系統資源監控 (UI 上的 CPU 使用率顯示)
+psutil
+
+# 鍵盤按鍵模擬 (如果不使用 ctypes 底層控制，則需要此庫)
+pynput
+
+# 核心 MIDI 處理與實時監聽 (讀取 MIDI 檔案、解決變速問題)
+mido
+
+# mido 的實時音訊後端 (連接外部 MIDI 鍵盤/DAW 必備)
+python-rtmidi
+
+# XML/MXL 樂譜解析 (作為非 MIDI 格式的備用解析引擎)
+music21
