@@ -167,6 +167,14 @@ class AIPianoApp:
             self.is_playing = True
             threading.Thread(target=self.play_engine, daemon=True).start()
 
+    def adjust_pitch(self, midi_pitch):
+        """將加上轉調後的音高，限制在 60~95 之間 (自動移八度)"""
+        while midi_pitch < 60:
+            midi_pitch += 12
+        while midi_pitch > 95:
+            midi_pitch -= 12
+        return midi_pitch
+    
     def play_engine(self):
         # 播放前紅字倒數
         for i in range(3, 0, -1):
@@ -197,11 +205,15 @@ class AIPianoApp:
             # 因為 n['t'] 已經是絕對秒數，直接除以倍速即可
             target_time = n['t'] / current_speed
             
-            # 和弦優化：預讀同一毫秒內的所有音符
-            chord_midi = [n['p'] + self.transpose.get()]
+            # 和弦優化：抓取同一時間點的所有音符
+            # 先加上 UI 的轉調值，再進行八度修正，確保最終音高在 60~95 內
+            base_pitch = n['p'] + self.transpose.get()
+            chord_midi = [self.adjust_pitch(base_pitch)]
+
             j = i + 1
             while j < len(notes) and abs(notes[j]['t'] - n['t']) < 0.005:
-                chord_midi.append(notes[j]['p'] + self.transpose.get())
+                next_pitch = notes[j]['p'] + self.transpose.get()
+                chord_midi.append(self.adjust_pitch(next_pitch))
                 j += 1
 
             # 高精準度等待
