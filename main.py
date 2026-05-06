@@ -108,8 +108,8 @@ class AIPianoApp:
     def update_info_display(self, elapsed=0):
         if not self.current_song: return
         s_factor = self.speed.get()
-        # 考慮到速度，計算剩餘/總長度
-        real_duration = (self.current_song['duration'] * (60 / self.current_song['bpm'])) / s_factor
+        # 直接除以倍速即可
+        real_duration = self.current_song['duration'] / s_factor
         
         m, s = divmod(int(elapsed), 60)
         tm, ts = divmod(int(real_duration), 60)
