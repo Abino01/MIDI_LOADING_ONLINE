@@ -6,6 +6,7 @@ import psutil
 from processor import MidiProcessor
 from bridge import KeyboardBridge
 from logger import AppLogger
+from MidiListener import MidiListener
 
 class AIPianoApp:
     def __init__(self, root):
@@ -27,7 +28,8 @@ class AIPianoApp:
         self.transpose = tk.IntVar(value=0)
         self.visual_on = tk.BooleanVar(value=True)
         self.countdown_text = tk.StringVar(value="")
-        
+        self.midi_listener = MidiListener(self.bridge, self)
+
         self.setup_ui()
         self.update_cpu_monitor()
 
@@ -69,9 +71,22 @@ class AIPianoApp:
         self.tp_spin.grid(row=0, column=4)
         
         ttk.Checkbutton(set_frame, text="開啟視覺化", variable=self.visual_on).grid(row=0, column=5, padx=10)
-
+        # 獲取設備列表
+        ports = self.midi_listener.get_available_ports()
+        self.port_var = tk.StringVar()
+        self.port_combo = ttk.Combobox(ctrl_frame, textvariable=self.port_var, values=ports)
+        self.port_combo.pack(side="left", padx=5)
+        # 添加一個連接按鈕
+        ttk.Button(ctrl_frame, text="連接 MIDI 鍵盤", command=self.connect_midi).pack(side="left")
+        
         # 4. 88鍵畫布
         self.setup_visual_canvas()
+
+    def connect_midi(self):
+        port_name = self.port_var.get()
+        if port_name:
+            self.midi_listener.start_listening(port_name)
+            self.info_lbl.config(text=f"[實時模式] 已連接: {port_name}")
 
     def setup_visual_canvas(self):
         v_frame = ttk.LabelFrame(self.root, text="視覺化鋼琴 (88鍵)")
