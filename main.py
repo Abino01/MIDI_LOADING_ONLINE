@@ -168,7 +168,7 @@ class AIPianoApp:
         start_t = time.time()
         elapsed = 0
         notes = self.current_song['notes']
-        bpm_factor = 60 / self.current_song['bpm']
+        #bpm_factor = 60 / self.current_song['bpm']
         i = 0
         
         while i < len(notes) and self.is_playing:
@@ -179,8 +179,8 @@ class AIPianoApp:
 
             current_speed = self.speed.get()
             n = notes[i]
-            # 換算目標時間 (考慮動態速度)
-            target_time = (n['t'] * bpm_factor) / current_speed
+            # 因為 n['t'] 已經是絕對秒數，直接除以倍速即可
+            target_time = n['t'] / current_speed
             
             # 和弦優化：預讀同一毫秒內的所有音符
             chord_midi = [n['p'] + self.transpose.get()]
