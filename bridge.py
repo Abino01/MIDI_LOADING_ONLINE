@@ -18,29 +18,55 @@ class KeyboardBridge:
         }
 
     def execute_chord(self, midi_notes):
-        """和弦並行處理：先按住功能鍵，再敲擊字母鍵"""
-        active_keys = []
-        needs_shift = False
-        needs_ctrl = False
+        """和弦分組處理：避免 Shift/Ctrl 污染普通音符"""
+        normal_keys = []
+        shift_keys = []
+        ctrl_keys = []
 
+        # 1. 將音符按修飾鍵分類
         for note in midi_notes:
             if note in self.mapping:
                 action = self.mapping[note]
-                if 'shift+' in action: needs_shift = True
-                if 'ctrl+' in action: needs_ctrl = True
-                active_keys.append(action.split('+')[-1])
+                key = action.split('+')[-1]
+                
+                if 'shift+' in action:
+                    shift_keys.append(key)
+                elif 'ctrl+' in action:
+                    ctrl_keys.append(key)
+                else:
+                    normal_keys.append(key)
 
         try:
-            if needs_shift: self.keyboard.press(Key.shift)
-            if needs_ctrl: self.keyboard.press(Key.ctrl)
-            
-            for k in active_keys: self.keyboard.press(k)
-            time.sleep(0.02) # 確保遊戲捕捉到按鍵
-            for k in active_keys: self.keyboard.release(k)
-            
-            if needs_shift: self.keyboard.release(Key.shift)
-            if needs_ctrl: self.keyboard.release(Key.ctrl)
-        except Exception:
+            # 2. 彈奏普通鍵 (白鍵)
+            if normal_keys:
+                for k in normal_keys: 
+                    self.keyboard.press(k)
+                time.sleep(0.01) # 短暫停留讓遊戲識別
+                for k in normal_keys: 
+                    self.keyboard.release(k)
+
+            # 3. 彈奏 Shift 鍵 (黑鍵)
+            if shift_keys:
+                self.keyboard.press(Key.shift)
+                for k in shift_keys: 
+                    self.keyboard.press(k)
+                time.sleep(0.01)
+                for k in shift_keys: 
+                    self.keyboard.release(k)
+                self.keyboard.release(Key.shift)
+
+            # 4. 彈奏 Ctrl 鍵 (黑鍵)
+            if ctrl_keys:
+                self.keyboard.press(Key.ctrl)
+                for k in ctrl_keys: 
+                    self.keyboard.press(k)
+                time.sleep(0.01)
+                for k in ctrl_keys: 
+                    self.keyboard.release(k)
+                self.keyboard.release(Key.ctrl)
+                
+        except Exception as e:
+            print(f"Key press error: {e}")
             pass
 
 
