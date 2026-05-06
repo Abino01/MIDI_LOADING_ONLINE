@@ -10,7 +10,7 @@ from logger import AppLogger
 class AIPianoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Piano Aoto Player v0.4.0")
+        self.root.title("PianoAotoPlayer_v0.8F")
         self.root.geometry("850x720")
         
         self.processor = MidiProcessor()
@@ -26,7 +26,6 @@ class AIPianoApp:
         self.speed = tk.DoubleVar(value=1.0)
         self.transpose = tk.IntVar(value=0)
         self.visual_on = tk.BooleanVar(value=True)
-        self.ui_mode_pro = tk.BooleanVar(value=True)
         self.countdown_text = tk.StringVar(value="")
         
         self.setup_ui()
@@ -49,16 +48,17 @@ class AIPianoApp:
         self.info_lbl = ttk.Label(self.root, text="[等待中] 請導入歌曲", font=("Microsoft JhengHei", 12), justify="center")
         self.info_lbl.pack(pady=5)
         
-        self.countdown_lbl = tk.Label(self.root, textvariable=self.countdown_text, font=("Arial", 32, "bold"), fg="red")
+        # 紅字大倒數
+        self.countdown_lbl = tk.Label(self.root, textvariable=self.countdown_text, font=("Arial", 36, "bold"), fg="red")
         self.countdown_lbl.pack(pady=5)
 
         # 3. 演奏參數設置區
-        set_frame = ttk.LabelFrame(self.root, text="演奏與視覺設定")
+        set_frame = ttk.LabelFrame(self.root, text="演奏控制")
         set_frame.pack(pady=5, fill="x", padx=20)
         
-        # 播放速度 0.1~5.0
-        ttk.Label(set_frame, text="播放速度:").grid(row=0, column=0, padx=5)
-        self.speed_scale = ttk.Scale(set_frame, from_=0.1, to=5.0, variable=self.speed, orient="horizontal", length=200, command=self.update_speed_display)
+        # 播放速度：0.1 ~ 5.0，步長 0.1
+        ttk.Label(set_frame, text="播放速度 (0.1-5.0):").grid(row=0, column=0, padx=5)
+        self.speed_scale = ttk.Scale(set_frame, from_=0.1, to=5.0, variable=self.speed, orient="horizontal", length=200, command=self.update_speed_label)
         self.speed_scale.grid(row=0, column=1)
         self.speed_val_lbl = ttk.Label(set_frame, text="1.0x")
         self.speed_val_lbl.grid(row=0, column=2, padx=5)
@@ -79,9 +79,9 @@ class AIPianoApp:
         self.v_canvas = tk.Canvas(v_frame, width=820, height=120, bg="white")
         self.v_canvas.pack(pady=5)
         
-        w = 11.0 # 每個白鍵的基本寬度
+        w = 11.0 # 白鍵寬度
         white_idx = 0
-        # 繪製白鍵 (MIDI 21-108)
+        # 繪製白鍵 (MIDI 21 - 108)
         for midi in range(21, 109):
             if midi % 12 not in [1, 3, 6, 8, 10]:
                 x0 = white_idx * w
@@ -98,45 +98,50 @@ class AIPianoApp:
             else:
                 white_idx += 1
 
-    def update_speed_display(self, *args):
+    def update_speed_label(self, *args):
+        # 強制四捨五入到 0.1 單位
         val = round(self.speed.get(), 1)
         self.speed.set(val)
         self.speed_val_lbl.config(text=f"{val}x")
         self.update_info_display()
 
-    def update_info_display(self):
+    def update_info_display(self, elapsed=0):
         if not self.current_song: return
         s_factor = self.speed.get()
-        # 動態計算當前速度下的總長度
-        real_total_duration = (self.current_song['duration'] * (60 / self.current_song['bpm'])) / s_factor
-        tm, ts = divmod(int(real_total_duration), 60)
+        # 考慮到速度，計算剩餘/總長度
+        real_duration = (self.current_song['duration'] * (60 / self.current_song['bpm'])) / s_factor
         
-        status = "[播放中]" if self.is_playing else "[已停止]"
+        m, s = divmod(int(elapsed), 60)
+        tm, ts = divmod(int(real_duration), 60)
+        
+        status = "[播放中]" if self.is_playing else "[等待中]"
         if self.is_paused: status = "[暫停中]"
         
-        info = f"{status} {self.current_song['title']}\n總時長: {tm:02d}:{ts:02d} (於 {s_factor}x 速度)"
+        info = f"{status} {self.current_song['title']}\n進度: {m:02d}:{s:02d} / 總長: {tm:02d}:{ts:02d} (速度: {s_factor}x)"
         self.info_lbl.config(text=info)
 
     def load_midi(self):
+        # 支援雙引擎格式
         path = filedialog.askopenfilename(filetypes=[
             ("所有支援格式", "*.mid;*.midi;*.xml;*.mxl"),
-            ("MIDI files", "*.mid;*.midi"),
-            ("MusicXML files", "*.xml;*.mxl")
+            ("MIDI 檔案", "*.mid;*.midi"),
+            ("MusicXML 檔案", "*.xml;*.mxl")
         ])
         if path:
             try:
                 self.current_song = self.processor.parse(path)
-                self.update_info_display()
-                self.logger.info(f"成功載入: {path}")
+                self.update_info_display(0)
+                self.logger.info(f"成功加載檔案: {path}")
             except Exception as e:
-                self.logger.error(f"載入失敗: {e}")
+                self.logger.error(f"解析檔案失敗: {e}")
 
     def trigger_key_visual(self, midi_note):
         if not self.visual_on.get() or midi_note not in self.keys_rects: return
         rect = self.keys_rects[midi_note]
+        # 判斷原色
         orig_color = "black" if midi_note % 12 in [1, 3, 6, 8, 10] else "white"
         self.v_canvas.itemconfig(rect, fill="cyan")
-        self.root.after(150, lambda: self.v_canvas.itemconfig(rect, fill=orig_color))
+        self.root.after(120, lambda: self.v_canvas.itemconfig(rect, fill=orig_color))
 
     def start_playback(self):
         if not self.current_song: return
@@ -148,17 +153,18 @@ class AIPianoApp:
             threading.Thread(target=self.play_engine, daemon=True).start()
 
     def play_engine(self):
-        # 倒數計時邏輯
+        # 播放前紅字倒數
         for i in range(3, 0, -1):
             if not self.is_playing: 
                 self.countdown_text.set("")
                 return
-            self.countdown_text.set(f"倒數: {i}")
+            self.countdown_text.set(f"準備演奏: {i}")
             time.sleep(1)
         
         self.countdown_text.set("GO!")
         self.root.after(1000, lambda: self.countdown_text.set(""))
 
+        # 正式演奏邏輯
         start_t = time.time()
         elapsed = 0
         notes = self.current_song['notes']
@@ -173,42 +179,36 @@ class AIPianoApp:
 
             current_speed = self.speed.get()
             n = notes[i]
+            # 換算目標時間 (考慮動態速度)
             target_time = (n['t'] * bpm_factor) / current_speed
             
-            # 和弦優化：抓取同一時間點的所有音符
+            # 和弦優化：預讀同一毫秒內的所有音符
             chord_midi = [n['p'] + self.transpose.get()]
             j = i + 1
             while j < len(notes) and abs(notes[j]['t'] - n['t']) < 0.005:
                 chord_midi.append(notes[j]['p'] + self.transpose.get())
                 j += 1
 
-            # 精確等待
+            # 高精準度等待
             while elapsed < target_time:
                 if not self.is_playing: return
                 elapsed = time.time() - start_t
                 time.sleep(0.0005)
 
-            # 執行演奏
+            # 透過 bridge 執行按鍵
             self.bridge.execute_chord(chord_midi)
             
-            # 視覺化與進度更新
+            # 更新視覺化與 UI
             for m_note in chord_midi:
                 self.root.after(0, self.trigger_key_visual, m_note)
             
-            # 每隔一小段時間更新一次進度顯示，避免 UI 過載
-            if i % 2 == 0:
-                self.root.after(0, self.update_playback_timer, elapsed)
+            if i % 2 == 0: # 減少 UI 刷頻負擔
+                self.root.after(0, self.update_info_display, elapsed)
             
-            i = j 
+            i = j # 跳至下一組音符
         
         self.is_playing = False
-        self.update_info_display()
-
-    def update_playback_timer(self, elapsed):
-        m, s = divmod(int(elapsed), 60)
-        # 這裡僅更新時間數值，不重繪整個 info 標籤以節省資源
-        current_text = self.info_lbl.cget("text").split("\n")[0]
-        self.info_lbl.config(text=f"{current_text}\n當前進度: {m:02d}:{s:02d}")
+        self.update_info_display(elapsed)
 
     def stop_playback(self):
         self.is_playing = False
@@ -222,65 +222,9 @@ class AIPianoApp:
         usage = psutil.cpu_percent()
         color = "red" if usage > 80 else "orange" if usage > 50 else "green"
         self.cpu_lbl.config(text=f"CPU: {usage}%", foreground=color)
-        self.root.after(1500, self.update_cpu_monitor)
+        self.root.after(1000, self.update_cpu_monitor)
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = AIPianoApp(root)
     root.mainloop()
-
-
-
-#                            _ooOoo_  
-#                           o8888888o  
-#                           88" . "88  
-#                           (| -_- |)  
-#                            O\ = /O  
-#                        ____/`---'\____  
-#                      .   ' \\| |# `.  
-#                       / \\||| : |||# \  
-#                     / _||||| -:- |||||- \  
-#                       | | \\\ - #/ | |  
-#                     | \_| ''\---/'' | |  
-#                      \ .-\__ `-` ___/-. /  
-#                   ___`. .' /--.--\ `. . __  
-#                ."" '< `.___\_<|>_/___.' >'"".  
-#               | | : `- \`.;`\ _ /`;.`/ - ` : | |  
-#                 \ \ `-. \_ __\ /__ _/ .-` / /  
-#         ======`-.____`-.___\_____/___.-`____.-'======  
-#                            `=---='  
-#  
-#         .............................................  
-#                  佛祖保佑             永无BUG 
-#          佛曰:  
-#                  写字楼里写字间，写字间里程序员；  
-#                  程序人员写程序，又拿程序换酒钱。  
-#                  酒醒只在网上坐，酒醉还来网下眠；  
-#                  酒醉酒醒日复日，网上网下年复年。  
-#                  但愿老死电脑间，不愿鞠躬老板前；  
-#                  奔驰宝马贵者趣，公交自行程序员。  
-#                  别人笑我忒疯癫，我笑自己命太贱；  
-#                  不见满街漂亮妹，哪个归得程序员？
-
-
-
-
-
-#                   .::::.
-#                 .::::::::.
-#                :::::::::::
-#             ..:::::::::::'
-#          '::::::::::::'
-#            .::::::::::
-#       '::::::::::::::..
-#            ..::::::::::::.
-#          ``::::::::::::::::
-#           ::::``:::::::::'        .:::.
-#          ::::'   ':::::'       .::::::::.
-#        .::::'      ::::     .:::::::'::::.
-#       .:::'       :::::  .:::::::::' ':::::.
-#      .::'        :::::.:::::::::'      ':::::.
-#     .::'         ::::::::::::::'         ``::::.
-# ...:::           ::::::::::::'              ``::.
-#```` ':.          ':::::::::'                  ::::..
-#                   '.:::::'                    ':'````..

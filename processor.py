@@ -1,11 +1,51 @@
+import mido
 from music21 import converter, note, chord
 import os
 
 class MidiProcessor:
     def parse(self, file_path):
-        midi = converter.parse(file_path)
+        ext = os.path.splitext(file_path)[1].lower()
+        
+        # 根據副檔名自動分流
+        if ext in ['.mid', '.midi']:
+            return self._parse_with_mido(file_path)
+        elif ext in ['.xml', '.mxl']:
+            return self._parse_with_music21(file_path)
+        else:
+            raise ValueError(f"不支援的檔案格式: {ext}")
+
+    def _parse_with_mido(self, file_path):
+        """引擎 A: mido (極速處理 MIDI)"""
+        mid = mido.MidiFile(file_path)
         notes = []
-        for element in midi.flat.notes:
+        tpb = mid.ticks_per_beat
+        
+        for track in mid.tracks:
+            track_time = 0
+            for msg in track:
+                track_time += msg.time
+                # 僅抓取按下音符且力度大於 0 的事件
+                if msg.type == 'note_on' and msg.velocity > 0:
+                    notes.append({
+                        't': track_time / tpb, # 換算為 Quarter Length 以相容 main.py
+                        'p': msg.note
+                    })
+        
+        notes.sort(key=lambda x: x['t'])
+        
+        return {
+            'title': os.path.basename(file_path) + " (Fast Mode)",
+            'bpm': self._get_bpm_mido(mid),
+            'duration': max([n['t'] for n in notes]) if notes else 0,
+            'notes': notes
+        }
+
+    def _parse_with_music21(self, file_path):
+        """引擎 B: music21 (處理複雜 XML)"""
+        score = converter.parse(file_path)
+        notes = []
+        
+        for element in score.flat.notes:
             if isinstance(element, note.Note):
                 notes.append({'t': float(element.offset), 'p': element.pitch.midi})
             elif isinstance(element, chord.Chord):
@@ -15,68 +55,19 @@ class MidiProcessor:
         notes.sort(key=lambda x: x['t'])
         
         return {
-            'title': os.path.basename(file_path),
-            'author': 'Unknown',
-            'bpm': self._get_bpm(midi),
-            'duration': float(midi.duration.quarterLength),
-            'key': str(midi.analyze('key')),
+            'title': os.path.basename(file_path) + " (High Compatibility Mode)",
+            'bpm': self._get_bpm_music21(score),
+            'duration': float(score.duration.quarterLength),
             'notes': notes
         }
 
-    def _get_bpm(self, midi):
-        # 預設 120，若有標記則提取
-        temp = midi.metronomeMarkBoundaries()
+    def _get_bpm_mido(self, mid):
+        for track in mid.tracks:
+            for msg in track:
+                if msg.type == 'set_tempo':
+                    return mido.tempo2bpm(msg.tempo)
+        return 120
+
+    def _get_bpm_music21(self, score):
+        temp = score.metronomeMarkBoundaries()
         return temp[0][2].number if temp else 120
-    
-
-
-#                      江城子 . 程序员之歌
-#
-#                  十年生死两茫茫，写程序，到天亮。
-#                      千行代码，Bug何处藏。
-#                  纵使上线又怎样，朝令改，夕断肠。
-#
-#                  领导每天新想法，天天改，日日忙。
-#                      相顾无言，惟有泪千行。
-#                  每晚灯火阑珊处，夜难寐，加班狂。
-
-
-
-#                        ____________
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#  _____________________|            |_____________________
-# |                                                        |
-# |                                                        |
-# |                                                        |
-# |_____________________              _____________________|
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |____________|
-
-
-# 耶和華是我的牧者，我必不致缺乏。
-# 他使我躺臥在青草地上，領我在可安歇的水邊。
-# 他使我的靈魂甦醒，為自己的名引導我走義路。
-# 我雖然行過死蔭的幽谷，也不怕遭害，因為你與我同在；你的杖，你的竿，都安慰我。
-# 在我敵人面前，你為我擺設筵席；你用油膏了我的頭，使我的福杯滿溢。
-# 我一生一世必有恩惠慈愛隨著我；我且要住在耶和華的殿中，直到永遠。
-# - 詩篇 23篇
