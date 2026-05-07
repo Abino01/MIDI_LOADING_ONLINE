@@ -1,0 +1,13 @@
+   def generate_script(self, data, filename):
+        # 導出可執行的 Python 腳本
+        os.makedirs("exports", exist_ok=True)
+        out_path = f"exports/{filename}.py"
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(f"import time\nfrom pynput.keyboard import Controller, Key\n")
+            f.write(f"DATA = {json.dumps(data['notes'])}\nBPM = {data['bpm']}\n")
+            f.write("kb = Controller()\ndef play():\n    time.sleep(3)\n")
+            f.write("    for n in DATA:\n        # 執行逻辑...\n        pass\nplay()")
+        return out_path
+
+
+        
