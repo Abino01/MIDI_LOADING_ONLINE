@@ -80,7 +80,7 @@ for note in notes:
     remaining = target_time - time.perf_counter()
     
     if remaining > 0:
-        time.sleep(remaining)
+        time.sleep(remaining)  #應該可以用asyncio.sleep(n)異步?
     
     # 執行 MAA 點擊動作
     self.send_click(note['p'])
@@ -94,7 +94,7 @@ def _parse_midi_with_mido(self, file_path):
     mid = mido.MidiFile(file_path)
     notes = []
     
-    # 使用 mido 的內建迭代，它會自動處理 Tempo (BPM) 變化
+    # 使用 mido 的內建迭代，自動處理 Tempo (BPM) 變化
     # 包含all_time X=note_on
     current_time_sec = 0.0 
     
