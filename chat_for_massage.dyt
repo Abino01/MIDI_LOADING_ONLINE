@@ -1,3 +1,7 @@
+未實裝功能暫存
+
+
+
    def generate_script(self, data, filename):
         # 導出可執行的 Python 腳本
         os.makedirs("exports", exist_ok=True)
@@ -10,4 +14,61 @@
         return out_path
 
 
+
+---
+    def __init__(self):
+        self.keyboard = Controller()
+        # 定義語系對照
+        self.locales = {
+            "繁體中文": { ... }
+            "English":{ ... }
+            "日本語": { ... }
+        }
+        self.current_registry = self.locales["繁體中文"]
+
+        # 語言對照表 (i18n)
+        self.text_data = {
+            "繁體中文": {"select": "選擇樂譜", "start": "開始彈奏", "lang": "語言設定", "bpm": "播放速度 (BPM)", "semi": "半音偏移 (Key)"},
+            "English": {"select": "Select XML", "start": "Start Playing", "lang": "Language", "bpm": "Tempo (BPM)", "semi": "Semitone Offset"}
+        }
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        # --- 語言切換區 ---
+        lang_frame = ttk.LabelFrame(self.root, text="Settings")
+        lang_frame.pack(fill="x", padx=20, pady=10)
         
+        ttk.Label(lang_frame, text="Language:").pack(side="left", padx=5)
+        lang_menu = ttk.Combobox(lang_frame, textvariable=self.lang_var, values=list(self.text_data.keys()), state="readonly")
+        lang_menu.pack(side="left", padx=5, pady=5)
+        lang_menu.bind("<<ComboboxSelected>>", self.update_language)
+
+---
+    def __init__(self):
+        self.keyboard = Controller()
+        # 定義按鍵庫參照
+        self.locales = {
+            "NTE": {
+                    60: "z", 61: "shift+z", 62: "x", 63: "shift+x", 64: "c",
+                65: "v", 66: "shift+v", 67: "b", 68: "shift+b", 69: "n",
+                70: "shift+n", 71: "m", 72: "a", 73: "shift+a"
+            }
+            "Genhin":{ ... }
+            "NKrein": { ... }
+        }
+        self.current_registry = self.locales["NTE"]
+
+        #按鍵參照語系
+    def set_locale(self, lang_name):
+        """ 切換目前使用的語言映射表 """
+        if lang_name in self.locales:
+            self.current_registry = self.locales[lang_name]
+            print(f"[Bridge] 已切換按鍵映射至：{lang_name}")
+        else:
+            print(f"[Bridge] 找不到語系 {lang_name}，維持原設定")
+
+---
+
+
+
