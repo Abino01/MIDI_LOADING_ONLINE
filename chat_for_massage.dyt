@@ -1,7 +1,6 @@
 未實裝功能暫存
 
 
-
    def generate_script(self, data, filename):
         # 導出可執行的 Python 腳本
         os.makedirs("exports", exist_ok=True)
@@ -12,7 +11,6 @@
             f.write("kb = Controller()\ndef play():\n    time.sleep(3)\n")
             f.write("    for n in DATA:\n        # 執行邏輯...\n        pass\nplay()")
         return out_path
-
 
 
 ---
@@ -44,6 +42,7 @@
         lang_menu.pack(side="left", padx=5, pady=5)
         lang_menu.bind("<<ComboboxSelected>>", self.update_language)
 
+
 ---
     def __init__(self):
         self.keyboard = Controller()
@@ -68,9 +67,10 @@
         else:
             print(f"[Bridge] 找不到語系 {lang_name}，維持原設定")
 
+
 ---
 # 改善對於MAA延遲輸入
-#1 processor
+##1 processor
 start_real_time = time.perf_counter()
 for note in notes:
     #相對時間偏移
@@ -84,7 +84,8 @@ for note in notes:
     
     # 執行 MAA 點擊動作
     self.send_click(note['p'])
-#2 main-
+
+##2 main-
 import mido
 import time
 
