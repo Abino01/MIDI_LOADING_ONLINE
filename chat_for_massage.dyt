@@ -10,7 +10,7 @@
             f.write(f"import time\nfrom pynput.keyboard import Controller, Key\n")
             f.write(f"DATA = {json.dumps(data['notes'])}\nBPM = {data['bpm']}\n")
             f.write("kb = Controller()\ndef play():\n    time.sleep(3)\n")
-            f.write("    for n in DATA:\n        # 執行逻辑...\n        pass\nplay()")
+            f.write("    for n in DATA:\n        # 執行邏輯...\n        pass\nplay()")
         return out_path
 
 
