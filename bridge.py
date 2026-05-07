@@ -1,146 +1,76 @@
 import time
-from pynput.keyboard import Controller, Key
+import win32gui
+import win32con
+import win32api
 
 class KeyboardBridge:
     def __init__(self):
-        self.keyboard = Controller()
-        # 根據圖片分析的完整映射
+        self.hwnd = None
+        # MIDI虛擬鍵映射
         self.mapping = {
-            # 低音 Z-M
-            60: "z", 61: "shift+z", 62: "x", 63: "ctrl+c", 64: "c", 65: "v", 66: "shift+v",
-            67: "b", 68: "shift+b", 69: "n", 70: "ctrl+m", 71: "m",
-            # 中音 A-J
-            72: "a", 73: "shift+a", 74: "s", 75: "ctrl+d", 76: "d", 77: "f", 78: "shift+f",
-            79: "g", 80: "shift+g", 81: "h", 82: "ctrl+j", 83: "j",
-            # 高音 Q-U
-            84: "q", 85: "shift+q", 86: "w", 87: "ctrl+e", 88: "e", 89: "r", 90: "shift+r",
-            91: "t", 92: "shift+t", 93: "y", 94: "ctrl+u", 95: "u"
+            # 低音區域
+            60: (0x5A, None), 61: (0x5A, 'shift'), 62: (0x58, None), 63: (0x43, 'ctrl'), 64: (0x43, None),
+            65: (0x56, None), 66: (0x56, 'shift'), 67: (0x42, None), 68: (0x42, 'shift'), 69: (0x4E, None),
+            70: (0x4D, 'ctrl'), 71: (0x4D, None),
+            # 中音區域
+            72: (0x41, None), 73: (0x41, 'shift'), 74: (0x53, None), 75: (0x44, 'ctrl'), 76: (0x44, None),
+            77: (0x46, None), 78: (0x46, 'shift'), 79: (0x47, None), 80: (0x47, 'shift'), 81: (0x48, None),
+            82: (0x4A, 'ctrl'), 83: (0x4A, None),
+            # 高音區域
+            84: (0x51, None), 85: (0x51, 'shift'), 86: (0x57, None), 87: (0x45, 'ctrl'), 88: (0x45, None),
+            89: (0x52, None), 90: (0x52, 'shift'), 91: (0x54, None), 92: (0x54, 'shift'), 93: (0x59, None),
+            94: (0x55, 'ctrl'), 95: (0x55, None)
         }
 
-    def execute_chord(self, midi_notes):
-        """和弦分組處理：避免 Shift/Ctrl 污染普通音符"""
-        normal_keys = []
-        shift_keys = []
-        ctrl_keys = []
+    def set_target_hwnd(self, hwnd):
+        """鎖定目標遊戲視窗句柄"""
+        self.hwnd = hwnd
 
-        # 1. 將音符按修飾鍵分類
+    def _force_send_key(self, vk_code, is_down):
+
+        # 強制發送SendMessage to WM_ACTIVATE 構造精確LParam跟ScanCode
+
+        if not self.hwnd or not win32gui.IsWindow(self.hwnd):
+            return
+
+        # 獲取硬體掃描碼 (Scan Code)
+        scan_code = win32api.MapVirtualKey(vk_code, 0)
+        
+        #強制視窗訊息隊列
+        win32gui.SendMessage(self.hwnd, win32con.WM_ACTIVATE, win32con.WA_CLICKACTIVE, 0)
+        
+        if is_down:
+            # 建立按下訊息LParam
+            lparam = 1 | (scan_code << 16)
+            win32gui.PostMessage(self.hwnd, win32con.WM_KEYDOWN, vk_code, lparam)
+        else:
+            # 建立反饋訊息LParam(bit 30, 31 eor= 1)
+            lparam = 1 | (scan_code << 16) | (0xC0000000)
+            win32gui.PostMessage(self.hwnd, win32con.WM_KEYUP, vk_code, lparam)
+
+    def execute_chord(self, midi_notes):
+        """執行和弦演奏"""
+        if not self.hwnd or not win32gui.IsWindow(self.hwnd):
+            return
+
         for note in midi_notes:
             if note in self.mapping:
-                action = self.mapping[note]
-                key = action.split('+')[-1]
+                vk_code, mod = self.mapping[note]
                 
-                if 'shift+' in action:
-                    shift_keys.append(key)
-                elif 'ctrl+' in action:
-                    ctrl_keys.append(key)
-                else:
-                    normal_keys.append(key)
+                # 1. 處理修飾鍵按下
+                if mod == 'shift': self._force_send_key(win32con.VK_SHIFT, True)
+                if mod == 'ctrl': self._force_send_key(win32con.VK_CONTROL, True)
 
-        try:
-            # 2. 彈奏普通鍵 (白鍵)
-            if normal_keys:
-                for k in normal_keys: 
-                    self.keyboard.press(k)
-                time.sleep(0.01) # 短暫停留讓遊戲識別
-                for k in normal_keys: 
-                    self.keyboard.release(k)
-
-            # 3. 彈奏 Shift 鍵 (黑鍵)
-            if shift_keys:
-                self.keyboard.press(Key.shift)
-                for k in shift_keys: 
-                    self.keyboard.press(k)
-                time.sleep(0.01)
-                for k in shift_keys: 
-                    self.keyboard.release(k)
-                self.keyboard.release(Key.shift)
-
-            # 4. 彈奏 Ctrl 鍵 (黑鍵)
-            if ctrl_keys:
-                self.keyboard.press(Key.ctrl)
-                for k in ctrl_keys: 
-                    self.keyboard.press(k)
-                time.sleep(0.01)
-                for k in ctrl_keys: 
-                    self.keyboard.release(k)
-                self.keyboard.release(Key.ctrl)
+                # 2. 發送主按鍵按下
+                self._force_send_key(vk_code, True)
                 
-        except Exception as e:
-            print(f"Key press error: {e}")
-            pass
+                # 3. 模擬物理按壓延遲 (10ms)
+                # 這是讓 DirectInput 引擎有足夠時間在下一幀採樣到按鍵狀態的關鍵
+                time.sleep(0.01) 
+                
+                # 4. 發送主按鍵彈起
+                self._force_send_key(vk_code, False)
 
-
-
-
-
-#                        ____________
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#  _____________________|            |_____________________
-# |                                                        |
-# |                                                        |
-# |                                                        |
-# |_____________________              _____________________|
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |            |
-#                       |____________|
-
-
-# 耶和華是我的牧者，我必不致缺乏。
-# 他使我躺臥在青草地上，領我在可安歇的水邊。
-# 他使我的靈魂甦醒，為自己的名引導我走義路。
-# 我雖然行過死蔭的幽谷，也不怕遭害，因為你與我同在；你的杖，你的竿，都安慰我。
-# 在我敵人面前，你為我擺設筵席；你用油膏了我的頭，使我的福杯滿溢。
-# 我一生一世必有恩惠慈愛隨著我；我且要住在耶和華的殿中，直到永遠。
-# - 詩篇 23篇
-
-
-
-#                            _ooOoo_  
-#                           o8888888o  
-#                           88" . "88  
-#                           (| -_- |)  
-#                            O\ = /O  
-#                        ____/`---'\____  
-#                      .   ' \\| |# `.  
-#                       / \\||| : |||# \  
-#                     / _||||| -:- |||||- \  
-#                       | | \\\ - #/ | |  
-#                     | \_| ''\---/'' | |  
-#                      \ .-\__ `-` ___/-. /  
-#                   ___`. .' /--.--\ `. . __  
-#                ."" '< `.___\_<|>_/___.' >'"".  
-#               | | : `- \`.;`\ _ /`;.`/ - ` : | |  
-#                 \ \ `-. \_ __\ /__ _/ .-` / /  
-#         ======`-.____`-.___\_____/___.-`____.-'======  
-#                            `=---='  
-#  
-#         .............................................  
-#                  佛祖保佑             永无BUG 
-#          佛曰:  
-#                  写字楼里写字间，写字间里程序员；  
-#                  程序人员写程序，又拿程序换酒钱。  
-#                  酒醒只在网上坐，酒醉还来网下眠；  
-#                  酒醉酒醒日复日，网上网下年复年。  
-#                  但愿老死电脑间，不愿鞠躬老板前；  
-#                  奔驰宝马贵者趣，公交自行程序员。  
-#                  别人笑我忒疯癫，我笑自己命太贱；  
-#                  不见满街漂亮妹，哪个归得程序员？
+                # 5. 釋放修飾鍵
+                if mod == 'shift': self._force_send_key(win32con.VK_SHIFT, False)
+                if mod == 'ctrl': self._force_send_key(win32con.VK_CONTROL, False)
