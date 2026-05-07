@@ -69,6 +69,48 @@
             print(f"[Bridge] 找不到語系 {lang_name}，維持原設定")
 
 ---
+# 改善對於MAA延遲輸入
+#1 processor
+start_real_time = time.perf_counter()
+for note in notes:
+    #相對時間偏移
+    target_time = start_real_time + note['t']
+    
+    #等待
+    remaining = target_time - time.perf_counter()
+    
+    if remaining > 0:
+        time.sleep(remaining)
+    
+    # 執行 MAA 點擊動作
+    self.send_click(note['p'])
+#2 main-
+import mido
+import time
 
-
+def _parse_midi_with_mido(self, file_path):
+    
+    mid = mido.MidiFile(file_path)
+    notes = []
+    
+    # 使用 mido 的內建迭代，它會自動處理 Tempo (BPM) 變化
+    # 包含all_time X=note_on
+    current_time_sec = 0.0 
+    
+    for msg in mid: #強制累加mid
+        current_time_sec += msg.time
+        # 過濾鼓組(Ch,index 9)
+        if getattr(msg, 'channel', None) == 9:
+            continue
+            
+        # catch_voi
+        if msg.type == 'note_on' and msg.velocity > 0:
+            notes.append({
+                't': current_time_sec, # 相對音樂絕對時間
+                'p': msg.note
+            })
+    
+    # 確保時序 sort函數
+    notes.sort(key=lambda x: x['t'])
+    return notes
 
