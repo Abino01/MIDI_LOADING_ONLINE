@@ -49,28 +49,46 @@ class KeyboardBridge:
             win32gui.PostMessage(self.hwnd, win32con.WM_KEYUP, vk_code, lparam)
 
     def execute_chord(self, midi_notes):
-        """執行和弦演奏"""
+        """融合：分组并发，秒杀黑乐谱延迟"""
         if not self.hwnd or not win32gui.IsWindow(self.hwnd):
             return
+
+        normal_keys, shift_keys, ctrl_keys = [], [], []
 
         for note in midi_notes:
             if note in self.mapping:
                 vk_code, mod = self.mapping[note]
-                
-                # 1. 處理修飾鍵按下
-                if mod == 'shift': self._force_send_key(win32con.VK_SHIFT, True)
-                if mod == 'ctrl': self._force_send_key(win32con.VK_CONTROL, True)
+                if mod == 'shift': shift_keys.append(vk_code)
+                elif mod == 'ctrl': ctrl_keys.append(vk_code)
+                else: normal_keys.append(vk_code)
 
-                # 2. 發送主按鍵按下
-                self._force_send_key(vk_code, True)
-                
-                # 3. 模擬物理按壓延遲 (10ms)
-                # 這是讓 DirectInput 引擎有足夠時間在下一幀採樣到按鍵狀態的關鍵
-                time.sleep(0.01) 
-                
-                # 4. 發送主按鍵彈起
-                self._force_send_key(vk_code, False)
+        # 严格隔离分组弹奏
+        self._press_group(normal_keys, None)
+        # 使用 0xA0 (左Shift) 和 0xA2 (左Ctrl) 解决游戏跑调问题
+        self._press_group(shift_keys, 0xA0) 
+        self._press_group(ctrl_keys, 0xA2)
 
-                # 5. 釋放修飾鍵
-                if mod == 'shift': self._force_send_key(win32con.VK_SHIFT, False)
-                if mod == 'ctrl': self._force_send_key(win32con.VK_CONTROL, False)
+    def _press_group(self, vk_codes, mod_vk):
+        if not vk_codes:
+            return
+
+        # 1. 按下修饰键
+        if mod_vk:
+            self._force_send_key(mod_vk, True)
+            time.sleep(0.002) # 给游戏引擎反应时间，防跑调
+
+        # 2. 批量按下主按键
+        for vk in vk_codes:
+            self._force_send_key(vk, True)
+
+        # 3. 极速停留 (默认 0.008s)
+        time.sleep(0.008)
+
+        # 4. 批量抬起主按键
+        for vk in reversed(vk_codes):
+            self._force_send_key(vk, False)
+
+        # 5. 抬起修饰键
+        if mod_vk:
+            time.sleep(0.001)
+            self._force_send_key(mod_vk, False)
